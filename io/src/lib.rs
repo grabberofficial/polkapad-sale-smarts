@@ -4,11 +4,19 @@ use codec::{Decode, Encode};
 use gstd::{prelude::*, ActorId};
 use scale_info::TypeInfo;
 
-#[derive(Debug, Decode, Encode, TypeInfo)]
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, Copy)]
+pub struct Participate {
+    pub amount_bought: u128,
+    pub amount_paid_gear: u128,
+    pub participated_datetime: u64 
+}
+
+#[derive(Debug, Decode, Encode, TypeInfo, Default, Clone, Copy)]
 pub struct SaleParameters {
     pub token: ActorId,
     pub owner: ActorId,
     pub tokens_to_sell: u128,
+    pub token_price_in_gear: u128,
     pub registration_fee_gear: u128,
     pub start_datetime: u64,
     pub end_datetime: u64
@@ -16,7 +24,7 @@ pub struct SaleParameters {
 
 #[derive(Debug, Decode, Encode, TypeInfo)]
 pub struct SaleInitialConfiguration {
-    pub admin: ActorId,
+    pub sale_admin: ActorId,
     pub staking_contract: ActorId
 }
 
@@ -25,11 +33,18 @@ pub enum SaleAction {
     CreateSale(SaleParameters),
 
     SetSaleToken(ActorId),
-    SetRegistrationTime((u64, u64)),
+    SetRegistrationTime(u64, u64),
+    SetSaleTime(u64, u64),
     SetMaxAllocationSizes(BTreeMap<ActorId, u128>),
 
+    GetAllocationSizeOf(ActorId),
+    GetParticipationOf(ActorId),
+    GetSaleToken,
+    GetTotalSold,
+    GetTotalRaised,
+
     RegisterOnSale,
-    Participate(u128),
+    Participate,
 
     DepositTokens,
 
@@ -43,24 +58,47 @@ pub enum SaleAction {
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum SaleEvent {
-    SaleCreated(u64),
-    SaleTokenSet(ActorId),
+    SaleCreated(SaleParameters),
     UserRegistered(ActorId),
-    RegistrationGEARRefunded((ActorId, u128)),
-    TokenSold((ActorId, u128)),
+    RegistrationGEARRefunded(ActorId, u128),
 
-    AllocationWithdrawed((ActorId, u128)),
-    RegistrationFeeWithdrawed(u128),
+    AllocationWithdrawn(ActorId, u128),
+    RegistrationFeeWithdrawn(u128),
+    EarningsWithdrawn(u128),
 
     RegistrationTimeSet(u64),
+    SaleTimeSet(u64),
+    SaleTokenSet(ActorId),
     MaxAllocationSizeSet((ActorId, u128)),
-    GateClosed(u64)
+    GateClosed(u64),
+
+    SaleToken(ActorId),
+    AllocationSize(u128),
+    Participation(Participate),
+    TotalSold(u128),
+    TotalRaised(u128),
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum SaleState {
+    GetAllocationSizeOf(ActorId),
+    GetParticipationOf(ActorId),
+    GetSaleRoundTime,
+    GetRegistrationRoundTime,
+    GetSaleOwner,
+    GetSaleToken,
+    GetTotalSold,
+    GetTotalRaised,
 }
 
 #[derive(Debug, Encode, Decode, TypeInfo)]
 pub enum SaleReply {
+    SaleToken(ActorId),
+    SaleOwner(ActorId),
+    SaleRoundTime(u64, u64),
+    RegistrationRoundTime(u64, u64),
+    AllocationSize(u128),
+    Participation(Participate),
+    TotalSold(u128),
+    TotalRaised(u128),
 }

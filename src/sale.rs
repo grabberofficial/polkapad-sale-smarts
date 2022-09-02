@@ -1,6 +1,8 @@
 use gstd::{prelude::*, exec, msg, ActorId};
-use sale_io::{SaleEvent, SaleParameters};
-use ft_io::{FTState, FTReply, FTAction};
+
+use sale_io::{SaleEvent, SaleParameters, Participate};
+use ft_io::{FTAction, FTEvent};
+use staking_io::{StakingEvent, StakingAction};
 
 use crate::require;
 
@@ -8,24 +10,17 @@ const ZERO_ID: ActorId = ActorId::new([0u8; 32]);
 const ZERO_MAX_ALLOCATION_SIZE: u128 = 0;
 
 #[derive(Debug, Default)]
-pub struct Participate {
-    amount_bought: u128,
-    amount_paid_gear: u128,
-    participated_datetime: u64 
-}
-
-#[derive(Debug, Default)]
 pub struct RegistrationRound {
-    start_datetime: u64,
-    end_datetime: u64,
-    users: BTreeMap<ActorId, u128>
+    pub start_datetime: u64,
+    pub end_datetime: u64,
+    pub users: BTreeMap<ActorId, u128>
 }
 
 #[derive(Debug, Default)]
 pub struct SaleRound {
-    start_datetime: u64,
-    end_datetime: u64,
-    participants: BTreeMap<ActorId, Participate>
+    pub start_datetime: u64,
+    pub end_datetime: u64,
+    pub participants: BTreeMap<ActorId, Participate>
 }
 
 #[derive(Debug, Default)]
@@ -39,8 +34,8 @@ pub struct Sale {
 
     pub tokens_to_sell: u128,
     pub tokens_sold: u128,
+    pub tokens_raised: u128,
     pub token_price_in_gear: u128,
-    pub amount_raised: u128,
     pub tokens_deposited: bool,
 
     pub registration_fee_gear: u128,
@@ -54,7 +49,20 @@ pub struct Sale {
 }
 
 impl Sale {
-    pub fn register(&mut self) {
+    pub async fn register(&mut self) {
+        let reply: StakingEvent = msg::send_and_wait_for_reply(
+            self.staking_contract,
+            StakingAction::StakeOf(msg::source()),
+            0,
+        )
+        .unwrap()
+        .await
+        .expect("Function call error");
+
+        let balance = if let StakingEvent::StakeOf(staker) = reply { staker.balance } else { panic!("Error while parsing event") };
+
+        require!(balance > 0, "You need to stake PLPD to participate this sale");
+
         require!(self.registration_fee_gear == msg::value(), "Registration deposit doesn't match");
         require!(exec::block_timestamp() >= self.registration.start_datetime &&
                  exec::block_timestamp() <= self.registration.end_datetime,
@@ -68,10 +76,14 @@ impl Sale {
         self.registration.users.insert(msg::source(), ZERO_MAX_ALLOCATION_SIZE);
         self.registration_fees = self.registration_fees.saturating_add(msg::value());
 
-        msg::reply(SaleEvent::UserRegistered(msg::source()), 0).unwrap();
+        msg::send_for_reply(
+            msg::source(), 
+            SaleEvent::UserRegistered(msg::source()), 0)
+            .unwrap()
+            .await;
     }
 
-    pub async fn participate(&mut self, tokens_to_buy_in_gear: u128) {
+    pub async fn participate(&mut self) {
         require!(
             self.registration.users.get(&msg::source()).is_some(),
             "User must be registered"
@@ -81,23 +93,25 @@ impl Sale {
             "User already participated"
         );
 
-        let reply: FTReply = msg::send_and_wait_for_reply(
+        let tokens_to_buy_in_gear = msg::value();
+
+        let reply: FTEvent = msg::send_and_wait_for_reply(
             self.token,
-            FTState::Decimals,
+            FTAction::Decimals,
             0,
         )
         .unwrap()
         .await
         .expect("Function call error");
 
-        let decimals = if let FTReply::Decimals(decimals) = reply { decimals } else { panic!("Error while parsing event") } as u32;
+        let decimals = if let FTEvent::Decimals(decimals) = reply { decimals } else { panic!("Error while parsing event") } as u32;
 
         let tokens_to_buy = tokens_to_buy_in_gear
             .saturating_mul(10_u128.pow(decimals))
             .saturating_div(self.token_price_in_gear);
 
         require!(
-            tokens_to_buy > *self.registration.users.get(&msg::source()).unwrap(),
+            tokens_to_buy <= *self.registration.users.get(&msg::source()).unwrap(),
             "You cannot realize allocation greater than your max allocation size"
         );
 
@@ -108,7 +122,7 @@ impl Sale {
         );
 
         self.tokens_sold = self.tokens_sold.saturating_add(tokens_to_buy);
-        self.amount_raised = self.amount_raised.saturating_add(tokens_to_buy_in_gear);
+        self.tokens_raised = self.tokens_raised.saturating_add(tokens_to_buy_in_gear);
         self.registration_fees = self.registration_fees.saturating_sub(self.registration_fee_gear);
 
         self.sale.participants.insert(msg::source(), Participate { 
@@ -118,16 +132,9 @@ impl Sale {
         });
 
         msg::send_for_reply(
-            msg::source(), 
-            SaleEvent::RegistrationGEARRefunded((msg::source(), self.registration_fee_gear)), 
+            msg::source(),
+            SaleEvent::RegistrationGEARRefunded(msg::source(), self.registration_fee_gear), 
             self.registration_fee_gear)
-            .unwrap()
-            .await;
-
-        msg::send_for_reply(
-        msg::source(),
-        SaleEvent::TokenSold((msg::source(), tokens_to_buy)), 
-        0)
             .unwrap()
             .await;
     }
@@ -167,27 +174,21 @@ impl Sale {
 
         msg::send_for_reply(
             msg::source(), 
-            SaleEvent::AllocationWithdrawed((msg::source(), participation.amount_bought)), 
+            SaleEvent::AllocationWithdrawn(msg::source(), participation.amount_bought), 
             0)
             .unwrap()
             .await;
     }
 
-    pub async fn widthdraw_earnings(&mut self) {
+    pub fn widthdraw_earnings(&mut self) {
         self.only_sale_owner();
 
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
         require!(!self.earnings_withdrawn, "Impossible to withdraw earnings twice");
 
-        let earnings = self.amount_raised;
-        require!(earnings > 0, "There are no tokens to withdraw");
+        require!(self.tokens_raised > 0, "There are no tokens to withdraw");
 
-        transfer_tokens(
-            &self.token, 
-            &exec::program_id(), 
-            &msg::source(), 
-            earnings)
-            .await;
+        msg::reply(SaleEvent::EarningsWithdrawn(self.tokens_raised), self.tokens_raised).unwrap();
 
         self.earnings_withdrawn = true;
     }
@@ -217,9 +218,9 @@ impl Sale {
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
         require!(self.registration_fees > 0, "There are no tokens to withdraw");
 
-        self.registration_fees = 0;
+        msg::reply(SaleEvent::RegistrationFeeWithdrawn(self.registration_fees), self.registration_fees).unwrap();
 
-        msg::reply(SaleEvent::RegistrationFeeWithdrawed(self.registration_fees), self.registration_fees).unwrap();
+        self.registration_fees = 0;
     }
 
     pub fn close_gate(&mut self) {
@@ -263,11 +264,12 @@ impl Sale {
 
         require!(!self.is_created, "Sale must not be created");
         require!(parameters.owner != ZERO_ID, "Invalid sale owner address");
-        require!(parameters.end_datetime > exec::block_timestamp(), "Sale must be creaded in future");
-        require!(parameters.tokens_to_sell > 0, "Amout of tokens must be great than zero");
+        require!(parameters.end_datetime > exec::block_timestamp(), "Sale must ends in future");
+        require!(parameters.tokens_to_sell > 0, "Amout of tokens must be greater than zero");
 
         self.owner = parameters.owner;
         self.token = parameters.token;
+        self.token_price_in_gear = parameters.token_price_in_gear;
         self.tokens_to_sell = parameters.tokens_to_sell;
         self.registration_fee_gear = parameters.registration_fee_gear;
 
@@ -279,16 +281,16 @@ impl Sale {
 
         self.is_created = true;
 
-        msg::reply(SaleEvent::SaleCreated(exec::block_timestamp()), 0).unwrap();
+        msg::reply(SaleEvent::SaleCreated(parameters), 0).unwrap();
     }
 
     pub fn set_registration_time(&mut self, start_datetime: u64, end_datetime: u64) {
         self.only_admin();
-        self.only_sale_owner();
+        self.only_if_gate_open();
 
         require!(self.is_created, "Sale must be created");
-        require!(self.sale.end_datetime > end_datetime, "Registration end date must be earlier than sale end date");
-        require!(start_datetime >= exec::block_timestamp() && start_datetime > end_datetime, "Start date of the sale must be in future");
+        require!(self.sale.end_datetime > end_datetime, "Registration end date must be earlier than sale's end date");
+        require!(start_datetime >= exec::block_timestamp() && start_datetime < end_datetime, "Registration's start date must be in future");
 
         self.registration = RegistrationRound {
             start_datetime,
@@ -299,6 +301,19 @@ impl Sale {
         msg::reply(SaleEvent::RegistrationTimeSet(exec::block_timestamp()), 0).unwrap();
     }
 
+    pub fn set_sale_time(&mut self, start_datetime: u64, end_datetime: u64) {
+        self.only_admin();
+        self.only_if_gate_open();
+
+        require!(self.is_created, "Sale must be created");
+        require!(start_datetime >= exec::block_timestamp() && start_datetime < end_datetime, "Sale's start date must be in future");
+
+        self.sale.start_datetime = start_datetime;
+        self.sale.end_datetime = end_datetime;
+
+        msg::reply(SaleEvent::SaleTimeSet(exec::block_timestamp()), 0).unwrap();
+    }
+
     pub fn set_sale_token(&mut self, sale_token: ActorId) {
         self.only_admin();
         self.only_if_gate_open();
@@ -306,6 +321,34 @@ impl Sale {
         self.token = sale_token;
 
         msg::reply(SaleEvent::SaleTokenSet(sale_token), 0).unwrap();
+    }
+
+    pub fn get_allocation_size_of(&self, participiant: ActorId) {
+        let allocation_size = self.registration.users
+            .get(&participiant)
+            .expect("Polkapad Sale: user is not registered to the sale");
+        
+        msg::reply(SaleEvent::AllocationSize(*allocation_size), 0).unwrap();
+    }
+
+    pub fn get_participation_of(&self, participiant: ActorId) {
+        let participation = self.sale.participants
+            .get(&participiant)
+            .expect("Polkapad Sale:  user is not a participiant of this sale");
+        
+        msg::reply(SaleEvent::Participation(*participation), 0).unwrap();
+    }
+
+    pub fn get_sale_token(&self) {
+        msg::reply(SaleEvent::SaleToken(self.token), 0).unwrap();
+    }
+
+    pub fn get_total_raised(&self) {
+        msg::reply(SaleEvent::TotalRaised(self.tokens_raised), 0).unwrap();
+    }
+
+    pub fn get_total_sold(&self) {
+        msg::reply(SaleEvent::TotalSold(self.tokens_sold), 0).unwrap();
     }
 
     fn only_admin(&self) {

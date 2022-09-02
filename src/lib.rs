@@ -1,7 +1,5 @@
 #![no_std]
 
-#[cfg(test)]
-mod tests;
 mod sale;
 mod utils;
 
@@ -29,7 +27,8 @@ pub unsafe extern "C" fn init() {
         .expect("Polkapad Sale: unable to decode configuration");
 
     let sale = Sale {
-        owner: msg::source(),
+        admin: config.sale_admin,
+        staking_contract: config.staking_contract,
         ..Sale::default()
     };
 
@@ -50,8 +49,11 @@ async unsafe fn main() {
         SaleAction::SetSaleToken(token_address) => {
             sale.set_sale_token(token_address);
         },
-        SaleAction::SetRegistrationTime((start_datetime, end_datetime)) => {
+        SaleAction::SetRegistrationTime(start_datetime, end_datetime) => {
             sale.set_registration_time(start_datetime, end_datetime);
+        },
+        SaleAction::SetSaleTime(start_datetime, end_datetime) => {
+            sale.set_sale_time(start_datetime, end_datetime);
         },
         SaleAction::SetMaxAllocationSizes(users) => {
             sale.set_allocation_sizes(users);
@@ -63,27 +65,65 @@ async unsafe fn main() {
             sale.close_gate();
         },
         SaleAction::RegisterOnSale => {
-            sale.register();
+            sale.register().await;
         },
-        SaleAction::Participate(tokens_to_buy_in_gear) => {
-            sale.participate(tokens_to_buy_in_gear).await;
+        SaleAction::Participate => {
+            sale.participate().await;
         },
         SaleAction::WithdrawAllocation => {
             sale.widthdraw_allocation().await;
         },
         SaleAction::WithdrawEarnings => {
-            sale.widthdraw_earnings().await;
+            sale.widthdraw_earnings();
         },
         SaleAction::WithdrawLeftover => {
             sale.widthdraw_leftover().await;
         },
         SaleAction::WithdrawRegistrationFees => {
             sale.widthdraw_registration_fees();
-        }
+        },
+        SaleAction::GetSaleToken => {
+            sale.get_sale_token();
+        },
+        SaleAction::GetTotalRaised => {
+            sale.get_total_raised();
+        },
+        SaleAction::GetTotalSold => {
+            sale.get_total_sold();
+        },
+        SaleAction::GetAllocationSizeOf(participiant) => {
+            sale.get_allocation_size_of(participiant);
+        },
+        SaleAction::GetParticipationOf(participiant) => {
+            sale.get_participation_of(participiant);
+        },
     }
 
 }
 
-// #[no_mangle]
-// pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
-// }
+#[no_mangle]
+pub unsafe extern "C" fn meta_state() -> *mut [i32; 2] {
+    let query: SaleState = msg::load().expect("Polkapad Sale: unable to decode state");
+    let sale: &mut Sale = SALE.get_or_insert(Sale::default());
+
+    let encoded = match query {
+        SaleState::GetAllocationSizeOf(who) => 
+            SaleReply::AllocationSize(*sale.registration.users.get(&who).unwrap_or(&0)),
+        SaleState::GetParticipationOf(who) => 
+            SaleReply::Participation(*sale.sale.participants.get(&who).unwrap_or(&Participate { ..Default::default() })),
+        SaleState::GetSaleRoundTime => 
+            SaleReply::SaleRoundTime(sale.registration.start_datetime, sale.registration.end_datetime),
+        SaleState::GetRegistrationRoundTime => 
+            SaleReply::RegistrationRoundTime(sale.sale.start_datetime, sale.sale.end_datetime),
+        SaleState::GetSaleToken => 
+            SaleReply::SaleToken(sale.token),
+        SaleState::GetSaleOwner => 
+            SaleReply::SaleOwner(sale.owner),
+        SaleState::GetTotalSold => 
+            SaleReply::TotalSold(sale.tokens_sold),
+        SaleState::GetTotalRaised => 
+            SaleReply::TotalSold(sale.tokens_raised),
+    }
+    .encode();
+    gstd::util::to_leak_ptr(encoded)
+}
