@@ -27,8 +27,8 @@ pub fn configure_sale(system: &System, sale: &Program, registration_fee_gear: u1
         tokens_to_sell: TOKENS_TO_SELL,
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,
         registration_fee_gear: registration_fee_gear,
-        start_datetime: system.block_timestamp() + 15000,
-        end_datetime: system.block_timestamp() + 30000,   
+        start_datetime: system.block_timestamp() - 15000,
+        end_datetime: system.block_timestamp() + 40000,   
     }));
 
     let register_start_date = system.block_timestamp();
@@ -111,7 +111,7 @@ fn init_token(system: &System, name: &str, symbol: &str) {
         FTInitialConfiguration {
             name: String::from(name),
             symbol: String::from(symbol),
-            decimals: DECIMALS
+            decimals: DECIMALS as u8
         },
     );
 

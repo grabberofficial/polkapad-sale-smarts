@@ -28,7 +28,7 @@ pub struct Sale {
     pub admin: ActorId,
     pub owner: ActorId,
     pub token: ActorId,
-    pub staking_contract: ActorId, // TODO: add the check of staking balance before registering
+    pub staking_contract: ActorId,
     pub registration: RegistrationRound,
     pub sale: SaleRound,
 
@@ -66,11 +66,11 @@ impl Sale {
         require!(self.registration_fee_gear == msg::value(), "Registration deposit doesn't match");
         require!(exec::block_timestamp() >= self.registration.start_datetime &&
                  exec::block_timestamp() <= self.registration.end_datetime,
-            "Registration is closed."
+            "Registration round is over"
         );
         require!(
             self.registration.users.get(&msg::source()).is_none(),
-            "User already registered."
+            "User already registered"
         );
 
         self.registration.users.insert(msg::source(), ZERO_MAX_ALLOCATION_SIZE);
@@ -84,6 +84,11 @@ impl Sale {
     }
 
     pub async fn participate(&mut self) {
+        require!(exec::block_timestamp() >= self.sale.start_datetime &&
+                 exec::block_timestamp() <= self.sale.end_datetime,
+            "Sale round is over"
+        );
+
         require!(
             self.registration.users.get(&msg::source()).is_some(),
             "User must be registered"
@@ -137,6 +142,21 @@ impl Sale {
             self.registration_fee_gear)
             .unwrap()
             .await;
+    }
+
+    pub fn remove_registered(&mut self, who: ActorId) {
+        require!(exec::block_timestamp() >= self.registration.start_datetime &&
+                 exec::block_timestamp() <= self.registration.end_datetime,
+            "Registration round is over"
+        );
+        require!(
+            self.registration.users.get(&msg::source()).is_some(),
+            "User must be registered"
+        );
+
+        self.registration.users.remove(&who);   
+        
+        msg::reply(SaleEvent::RegisteredRemoved(who), 0).unwrap();
     }
 
     pub async fn deposit_tokens(&mut self) {

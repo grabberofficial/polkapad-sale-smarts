@@ -61,6 +61,9 @@ async unsafe fn main() {
         SaleAction::DepositTokens => {
             sale.deposit_tokens().await;
         },
+        SaleAction::RemoveRegistered(who) => {
+            sale.remove_registered(who);
+        },
         SaleAction::CloseGate => {
             sale.close_gate();
         },

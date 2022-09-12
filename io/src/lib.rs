@@ -53,6 +53,7 @@ pub enum SaleAction {
     WithdrawEarnings,
     WithdrawRegistrationFees,
 
+    RemoveRegistered(ActorId),
     CloseGate
 }
 
@@ -70,6 +71,8 @@ pub enum SaleEvent {
     SaleTimeSet(u64),
     SaleTokenSet(ActorId),
     MaxAllocationSizeSet((ActorId, u128)),
+
+    RegisteredRemoved(ActorId),
     GateClosed(u64),
 
     SaleToken(ActorId),
