@@ -18,8 +18,6 @@ pub struct SaleParameters {
     pub tokens_to_sell: u128,
     pub token_price_in_gear: u128,
     pub registration_fee_gear: u128,
-    pub start_datetime: u64,
-    pub end_datetime: u64
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]

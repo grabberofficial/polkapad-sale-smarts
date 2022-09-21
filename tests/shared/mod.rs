@@ -60,7 +60,7 @@ pub fn set_max_allocation_size_to_user(system: &System, user: u64, allocation_si
 pub fn transfer_tokens(system: &System, token: u64, from: u64, to: u64, amount: u128) {
     let token = system.get_program(token);
 
-    token.send(DEPLOYER, FTAction::Transfer { 
+    token.send(DEPLOYER, FTAction::TransferFrom { 
         from: from.into(), 
         to: to.into(), 
         amount 
@@ -117,7 +117,7 @@ fn init_token(system: &System, name: &str, symbol: &str) {
 
     assert!(!result.main_failed());
 
-    token.send(DEPLOYER, FTAction::Transfer { 
+    token.send(DEPLOYER, FTAction::TransferFrom { 
         from: DEPLOYER.into(),
         to: SALE_OWNER.into(), 
         amount: TOKENS_TO_SELL 

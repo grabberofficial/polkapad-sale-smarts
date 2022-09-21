@@ -59,7 +59,7 @@ impl Sale {
         .await
         .expect("Function call error");
 
-        let balance = if let StakingEvent::StakeOf(staker) = reply { staker.balance } else { panic!("Error while parsing event") };
+        let balance = if let StakingEvent::Staked(balance) = reply { balance } else { panic!("Error while parsing event") };
 
         require!(balance > 0, "You need to stake PLPD to participate this sale");
 
@@ -284,7 +284,6 @@ impl Sale {
 
         require!(!self.is_created, "Sale must not be created");
         require!(parameters.owner != ZERO_ID, "Invalid sale owner address");
-        require!(parameters.end_datetime > exec::block_timestamp(), "Sale must ends in future");
         require!(parameters.tokens_to_sell > 0, "Amout of tokens must be greater than zero");
 
         self.owner = parameters.owner;
@@ -292,12 +291,6 @@ impl Sale {
         self.token_price_in_gear = parameters.token_price_in_gear;
         self.tokens_to_sell = parameters.tokens_to_sell;
         self.registration_fee_gear = parameters.registration_fee_gear;
-
-        self.sale = SaleRound {
-            start_datetime: parameters.start_datetime,
-            end_datetime: parameters.end_datetime,
-            ..Default::default()
-        };
 
         self.is_created = true;
 
@@ -392,7 +385,7 @@ async fn transfer_tokens(
 ) {
     msg::send_for_reply(
         *token_address,
-        FTAction::Transfer {
+        FTAction::TransferFrom {
             from: *from,
             to: *to,
             amount,
