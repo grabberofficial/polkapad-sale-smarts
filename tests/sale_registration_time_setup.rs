@@ -16,16 +16,16 @@ fn set_registration_time_as_admin_should_created() {
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         registration_fee_gear: 1,
-        start_datetime: 1693055522084, // Sat Jul 26 2025 16:12:0
-        end_datetime: 1756213922084,   // Tue Aug 26 2025 16:12:02 
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,   
     }));
 
-    let register_start_date = 1753535522084; // Sat Jul 26 2025 16:12:02
-    let register_end_date = 1753621922084;   // Sun Jul 27 2025 16:12:02 
+    let register_start_date = 1753535522084;
+    let register_end_date = 1753621922084;
 
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_end_date + 10, register_end_date + 20));
     let result = sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
     assert!(result.contains(&(SALE_ADMIN, SaleEvent::RegistrationTimeSet(system.block_timestamp()).encode())));
 }
@@ -41,8 +41,6 @@ fn set_registration_time_as_not_admin_should_failed() {
         owner: SALE_OWNER.into(),
         tokens_to_sell: 100,
         registration_fee_gear: 1,
-        start_datetime: 1693055522084, // Sat Jul 26 2025 16:12:0
-        end_datetime: 1756213922084,   // Tue Aug 26 2025 16:12:02 
         ..Default::default()
     }));
 

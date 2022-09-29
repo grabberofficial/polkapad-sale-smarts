@@ -16,10 +16,9 @@ fn create_sale_as_admin_should_created() {
     let parameters = SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         registration_fee_gear: 1,
-        start_datetime: 1693055522084, // Sat Aug 26 2023 16:12:02
-        end_datetime: 1756213922084,   // Tue Aug 26 2025 16:12:02 ,
         token_price_in_gear: TOKEN_PRICE_IN_GEAR
     };
 
@@ -52,10 +51,9 @@ fn create_sale_as_admin_when_sale_already_created_should_failed() {
     let parameters = SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         registration_fee_gear: 1,
-        start_datetime: 1693055522084, // Sat Aug 26 2023 16:12:02
-        end_datetime: 1756213922084,   // Tue Aug 26 2025 16:12:02 
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,  
     };
 
@@ -75,14 +73,15 @@ fn create_sale_as_admin_when_sale_start_date_in_past_should_failed() {
     let parameters = SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         registration_fee_gear: 1,
-        start_datetime: 1598447522084, // Wed Aug 26 2020 16:12:02
-        end_datetime: 1598447522084,   // Wed Aug 26 2020 16:12:02
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,   
     };
 
-    let result = sale.send(SALE_ADMIN, SaleAction::CreateSale(parameters));
+    sale.send(SALE_ADMIN, SaleAction::CreateSale(parameters));
+    let result = sale.send(SALE_ADMIN, SaleAction::SetSaleTime(system.block_timestamp() - 2, system.block_timestamp() - 1));
+    
     assert!(result.main_failed());
 }
 
@@ -96,10 +95,9 @@ fn create_sale_as_admin_when_tokens_to_sell_is_0_should_failed() {
     let parameters = SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 0,
         registration_fee_gear: 1,
-        start_datetime: 1693055522084, // Sat Aug 26 2023 16:12:02
-        end_datetime: 1756213922084,   // Tue Aug 26 2025 16:12:02 
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,   
     };
 

@@ -1,3 +1,4 @@
+use codec::Encode;
 use gstd::{String, BTreeMap};
 use gtest::{Program, System};
 
@@ -14,7 +15,7 @@ pub const DEPLOYER: u64 = 10;
 pub const SALE_OWNER: u64 = 11;
 pub const SALE_ADMIN: u64 = 12;
 pub const ALICE: u64 = 13;
-pub const BOB: u64 = 14;
+// pub const BOB: u64 = 14;
 
 pub const TOKENS_TO_SELL: u128 = 100_000_000 * 10e18 as u128;
 pub const TOKEN_PRICE_IN_GEAR: u128 =  10 * 10e18 as u128;
@@ -24,28 +25,28 @@ pub fn configure_sale(system: &System, sale: &Program, registration_fee_gear: u1
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: TOKENS_TO_SELL,
         token_price_in_gear: TOKEN_PRICE_IN_GEAR,
-        registration_fee_gear: registration_fee_gear,
-        start_datetime: system.block_timestamp() - 15000,
-        end_datetime: system.block_timestamp() + 40000,   
+        registration_fee_gear,
     }));
 
     let register_start_date = system.block_timestamp();
-    let register_end_date = system.block_timestamp() + 20000;
+    let register_end_date = system.block_timestamp() + 1;
 
     sale.send(SALE_OWNER, SaleAction::DepositTokens);
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_start_date, register_end_date + 80000));
     sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
-    sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear);
+    sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear.clone());
 }
 
 pub fn prepare_user_for_registration(system: &System, user: u64, gear_amount: u128, plpd_amount: u128, to_stake: u128) {
     system.mint_to(user, gear_amount);
     
-    transfer_tokens(system, PLPD_TOKEN_ADDRESS, DEPLOYER, user, plpd_amount);
+    transfer_tokens(system, PLPD_TOKEN_ADDRESS, DEPLOYER, user.clone(), plpd_amount);
 
     let staking = system.get_program(STAKING_ADDRESS);
-    staking.send(user, StakingAction::Stake(to_stake));
+    staking.send(user.clone(), StakingAction::Stake(to_stake));
 }
 
 pub fn set_max_allocation_size_to_user(system: &System, user: u64, allocation_size: u128) {
@@ -80,11 +81,8 @@ fn init_sale(system: &System) {
     
     let sale = Program::current(system);
     let result = sale.send(
-        DEPLOYER,
-        SaleInitialConfiguration { 
-            sale_admin: SALE_ADMIN.into(), 
-            staking_contract: STAKING_ADDRESS.into() 
-        },
+        SALE_ADMIN,
+        {}.encode()
     );
 
     assert!(result.log().is_empty());

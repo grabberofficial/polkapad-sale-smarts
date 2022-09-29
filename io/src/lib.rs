@@ -15,15 +15,10 @@ pub struct Participate {
 pub struct SaleParameters {
     pub token: ActorId,
     pub owner: ActorId,
+    pub staking: ActorId,
     pub tokens_to_sell: u128,
     pub token_price_in_gear: u128,
     pub registration_fee_gear: u128,
-}
-
-#[derive(Debug, Decode, Encode, TypeInfo)]
-pub struct SaleInitialConfiguration {
-    pub sale_admin: ActorId,
-    pub staking_contract: ActorId
 }
 
 #[derive(Debug, Decode, Encode, TypeInfo)]

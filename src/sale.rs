@@ -28,7 +28,7 @@ pub struct Sale {
     pub admin: ActorId,
     pub owner: ActorId,
     pub token: ActorId,
-    pub staking_contract: ActorId,
+    pub staking: ActorId,
     pub registration: RegistrationRound,
     pub sale: SaleRound,
 
@@ -50,8 +50,8 @@ pub struct Sale {
 
 impl Sale {
     pub async fn register(&mut self) {
-        let reply: StakingEvent = msg::send_and_wait_for_reply(
-            self.staking_contract,
+        let reply: StakingEvent = msg::send_for_reply_as::<_, StakingEvent>(
+            self.staking,
             StakingAction::StakeOf(msg::source()),
             0,
         )
@@ -80,7 +80,8 @@ impl Sale {
             msg::source(), 
             SaleEvent::UserRegistered(msg::source()), 0)
             .unwrap()
-            .await;
+            .await
+            .expect("Sending message error");
     }
 
     pub async fn participate(&mut self) {
@@ -100,7 +101,7 @@ impl Sale {
 
         let tokens_to_buy_in_gear = msg::value();
 
-        let reply: FTEvent = msg::send_and_wait_for_reply(
+        let reply: FTEvent = msg::send_for_reply_as::<_, FTEvent>(
             self.token,
             FTAction::Decimals,
             0,
@@ -141,7 +142,8 @@ impl Sale {
             SaleEvent::RegistrationGEARRefunded(msg::source(), self.registration_fee_gear), 
             self.registration_fee_gear)
             .unwrap()
-            .await;
+            .await
+            .expect("Sending message error");
     }
 
     pub fn remove_registered(&mut self, who: ActorId) {
@@ -176,7 +178,7 @@ impl Sale {
         self.tokens_deposited = true;
     }
 
-    pub async fn widthdraw_allocation(&mut self) {
+    pub async fn withdraw_allocation(&mut self) {
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
 
         let participant = self.sale.participants.get(&msg::source());
@@ -197,10 +199,11 @@ impl Sale {
             SaleEvent::AllocationWithdrawn(msg::source(), participation.amount_bought), 
             0)
             .unwrap()
-            .await;
+            .await
+            .expect("Sending message error");
     }
 
-    pub fn widthdraw_earnings(&mut self) {
+    pub fn withdraw_earnings(&mut self) {
         self.only_sale_owner();
 
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
@@ -213,7 +216,7 @@ impl Sale {
         self.earnings_withdrawn = true;
     }
 
-    pub async fn widthdraw_leftover(&mut self) {
+    pub async fn withdraw_leftover(&mut self) {
         self.only_sale_owner();
 
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
@@ -232,7 +235,7 @@ impl Sale {
         self.leftover_withdrawn = true;
     }
 
-    pub fn widthdraw_registration_fees(&mut self) {
+    pub fn withdraw_registration_fees(&mut self) {
         self.only_admin();
 
         require!(exec::block_timestamp() >= self.sale.end_datetime, "Sale is not over yet");
@@ -288,13 +291,14 @@ impl Sale {
 
         self.owner = parameters.owner;
         self.token = parameters.token;
+        self.staking = parameters.staking;
         self.token_price_in_gear = parameters.token_price_in_gear;
         self.tokens_to_sell = parameters.tokens_to_sell;
         self.registration_fee_gear = parameters.registration_fee_gear;
 
         self.is_created = true;
 
-        msg::reply(SaleEvent::SaleCreated(parameters), 0).unwrap();
+        msg::reply(SaleEvent::SaleCreated(parameters.clone()), 0).unwrap();
     }
 
     pub fn set_registration_time(&mut self, start_datetime: u64, end_datetime: u64) {

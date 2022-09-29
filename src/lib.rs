@@ -11,8 +11,6 @@ static mut SALE: Option<Sale> = None;
 
 gstd::metadata! {
     title: "PolkapadSale",
-    init:
-        input: SaleInitialConfiguration,
     handle:
         input: SaleAction,
         output: SaleEvent,
@@ -23,12 +21,8 @@ gstd::metadata! {
 
 #[no_mangle]
 pub unsafe extern "C" fn init() {
-    let config: SaleInitialConfiguration = msg::load()
-        .expect("Polkapad Sale: unable to decode configuration");
-
     let sale = Sale {
-        admin: config.sale_admin,
-        staking_contract: config.staking_contract,
+        admin: msg::source(),
         ..Sale::default()
     };
 
@@ -74,16 +68,16 @@ async unsafe fn main() {
             sale.participate().await;
         },
         SaleAction::WithdrawAllocation => {
-            sale.widthdraw_allocation().await;
+            sale.withdraw_allocation().await;
         },
         SaleAction::WithdrawEarnings => {
-            sale.widthdraw_earnings();
+            sale.withdraw_earnings();
         },
         SaleAction::WithdrawLeftover => {
-            sale.widthdraw_leftover().await;
+            sale.withdraw_leftover().await;
         },
         SaleAction::WithdrawRegistrationFees => {
-            sale.widthdraw_registration_fees();
+            sale.withdraw_registration_fees();
         },
         SaleAction::GetSaleToken => {
             sale.get_sale_token();

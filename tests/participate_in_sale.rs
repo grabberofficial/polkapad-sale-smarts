@@ -34,8 +34,8 @@ fn participate_in_sale_should_participated() {
     mailbox.claim_value(log.clone());
 
     assert!(result.contains(&log));
-    assert!(sale.balance() == to_participate);
-    assert!(system.balance_of(ALICE) == total_user_gear_amount - to_participate);
+    assert_eq!(sale.balance(), to_participate);
+    assert_eq!(system.balance_of(ALICE), total_user_gear_amount - to_participate);
     
     let result = sale.send(ALICE, SaleAction::GetParticipationOf(ALICE.into()));
     assert!(result.contains(&(ALICE, SaleEvent::Participation(Participate {

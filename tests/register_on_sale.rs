@@ -1,5 +1,5 @@
 use codec::Encode;
-use gtest::{System};
+use gtest::{Log, System};
 
 use sale_io::*;
 
@@ -19,21 +19,22 @@ fn register_on_sale_should_registered() {
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         token_price_in_gear: 5,   
         registration_fee_gear: 1000,
-        start_datetime: system.block_timestamp() + 15000,
-        end_datetime: system.block_timestamp() + 30000,
     }));
 
     let register_start_date = system.block_timestamp();
     let register_end_date = system.block_timestamp() + 20000;
 
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_end_date + 20000, register_end_date + 40000));
     sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
 
     let result = sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear);
+
     assert!(result.contains(&(ALICE, SaleEvent::UserRegistered(ALICE.into()).encode())));
-    assert!(system.balance_of(SALE_ADDRESS) == registration_fee_gear);
+    assert_eq!(system.balance_of(SALE_ADDRESS), registration_fee_gear);
 }
 
 #[test]
@@ -48,16 +49,16 @@ fn register_on_sale_when_no_stakes_should_failed() {
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         token_price_in_gear: 5,   
         registration_fee_gear: 1000,
-        start_datetime: system.block_timestamp() + 15000,
-        end_datetime: system.block_timestamp() + 30000,   
     }));
 
     let register_start_date = system.block_timestamp();
     let register_end_date = system.block_timestamp() + 20000;
 
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_end_date + 20000, register_end_date + 40000));
     sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
 
     let result = sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear);
@@ -76,16 +77,16 @@ fn register_on_sale_when_not_enough_fee_deposited_should_failed() {
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         token_price_in_gear: 5,   
         registration_fee_gear: 1000,
-        start_datetime: system.block_timestamp() + 15000,
-        end_datetime: system.block_timestamp() + 30000,   
     }));
 
     let register_start_date = system.block_timestamp();
     let register_end_date = system.block_timestamp() + 20000;
 
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_end_date + 20000, register_end_date + 40000));
     sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
 
     let result = sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear);
@@ -104,16 +105,16 @@ fn register_on_sale_when_user_already_registered_should_failed() {
     sale.send(SALE_ADMIN, SaleAction::CreateSale(SaleParameters {
         token: SALE_TOKEN_ADDRESS.into(),
         owner: SALE_OWNER.into(),
+        staking: STAKING_ADDRESS.into(),
         tokens_to_sell: 100,
         token_price_in_gear: 5,   
         registration_fee_gear: 500,
-        start_datetime: system.block_timestamp() + 15000,
-        end_datetime: system.block_timestamp() + 30000,   
     }));
 
     let register_start_date = system.block_timestamp();
     let register_end_date = system.block_timestamp() + 20000;
 
+    sale.send(SALE_ADMIN, SaleAction::SetSaleTime(register_end_date + 20000, register_end_date + 40000));
     sale.send(SALE_ADMIN, SaleAction::SetRegistrationTime(register_start_date, register_end_date));
 
     sale.send_with_value(ALICE, SaleAction::RegisterOnSale, registration_fee_gear);
